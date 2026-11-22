@@ -75,4 +75,8 @@ class GraphCompareService(BaseModuleService):
     def domain_snapshot(self) -> dict[str, Any]:
         base = super().domain_snapshot()
         base["cross_module_consumers"] = ["report_gen", "quality_audit"]
+        # 比对清单与图谱演化按同一份血缘来源（来源链路编号）取数
+        rows = store.rows(self.MODULE)
+        base["lineage_sourced"] = sum(1 for row in rows if row.get("来源链路编号"))
+        base["claimable_todos"] = sum(1 for row in rows if row.get("pending"))
         return base

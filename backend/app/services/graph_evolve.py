@@ -19,6 +19,13 @@ class GraphEvolveService(BaseModuleService):
 
     # ===== 跨模块数据流实现 =====
     def run_action(self, entry_id: int, action: str) -> tuple[dict[str, Any] | None, str]:
+        entry = store.find(self.MODULE, entry_id)
+        if entry is not None and entry.get("来源动作") == "提交验证":
+            # 血缘验证取证留档：仅用于查询追溯，未确认链路不得成为可执行的图谱改动
+            return None, (
+                f"演化记录 {entry.get('记录编号', entry_id)} 为血缘验证取证留档，"
+                "仅用于查询追溯；未确认链路不产生可执行图谱改动，不能进入评审/回滚/确认流程"
+            )
         entry, message = super().run_action(entry_id, action)
         if entry is None:
             return entry, message
@@ -75,4 +82,9 @@ class GraphEvolveService(BaseModuleService):
     def domain_snapshot(self) -> dict[str, Any]:
         base = super().domain_snapshot()
         base["cross_module_consumers"] = ["quality_audit", "graph_compare"]
+        # 读取可区分验证与确认的演化数据：只有确认改动才生成可领取待办
+        rows = store.rows(self.MODULE)
+        base["lineage_evidence"] = sum(1 for row in rows if row.get("来源动作") == "提交验证")
+        base["lineage_confirmed"] = sum(1 for row in rows if row.get("来源动作") == "确认链路")
+        base["claimable_todos"] = sum(1 for row in rows if row.get("pending"))
         return base
